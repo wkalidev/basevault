@@ -11,7 +11,11 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@coinbase/agentkit": "^0.10.4",
+    "@coinbase/agentkit-langchain": "^0.3.0",
+    "@langchain/groq": "^1.1.4",
     "dotenv": "^17.3.1",
+    "langchain": "^1.2.30",
     "viem": "^2.47.0"
   }
 }
