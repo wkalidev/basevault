@@ -10,6 +10,7 @@
     "vercel-install": "npm install --legacy-peer-deps"
   },
   "dependencies": {
+    "@metamask/sdk": "^0.34.0",
     "@rainbow-me/rainbowkit": "^2.2.10",
     "@tanstack/react-query": "^5.90.21",
     "next": "16.1.6",

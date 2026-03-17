@@ -1,7 +1,13 @@
-import { CdpAgentkit } from '@coinbase/agentkit';
-import { CdpToolkit } from '@coinbase/agentkit-langchain';
+import {
+  AgentKit,
+  CdpEvmWalletProvider,
+  erc20ActionProvider,
+  cdpEvmWalletActionProvider,
+} from '@coinbase/agentkit';
+import { getLangChainTools } from '@coinbase/agentkit-langchain';
 import { ChatGroq } from '@langchain/groq';
-import { createReactAgent } from 'langchain/agents';
+import { createReactAgent } from '@langchain/langgraph/prebuilt';
+import { HumanMessage } from '@langchain/core/messages';
 import { createPublicClient, http, parseAbi } from 'viem';
 import { baseSepolia } from 'viem/chains';
 import * as dotenv from 'dotenv';
@@ -20,7 +26,6 @@ const FACTORY_ABI = parseAbi([
 ]);
 const POOL_ABI = parseAbi([
   'function slot0() view returns (uint160 sqrtPriceX96, int24 tick, uint16, uint16, uint16, uint8, bool)',
-  'function tickSpacing() view returns (int24)',
 ]);
 const VAULT_ABI = parseAbi([
   'function inPosition() view returns (bool)',
@@ -35,7 +40,6 @@ const publicClient = createPublicClient({
   transport: http(RPC_URL),
 });
 
-// ── HELPERS ──────────────────────────────────────────────────
 function log(msg) {
   console.log(`[${new Date().toISOString()}] ${msg}`);
 }
@@ -46,7 +50,6 @@ function tickToPrice(tick) {
 
 // ── READ VAULT STATE ──────────────────────────────────────────
 async function getVaultState() {
-  // Find pool
   const poolAddress = await publicClient.readContract({
     address: FACTORY, abi: FACTORY_ABI,
     functionName: 'getPool', args: [WETH, USDC, 500],
@@ -65,7 +68,6 @@ async function getVaultState() {
   const outOfRange   = inPosition && (currentTick < Number(tickLower) || currentTick > Number(tickUpper));
 
   return {
-    poolAddress,
     currentTick,
     currentPrice: currentPrice.toFixed(8),
     inPosition,
@@ -81,97 +83,87 @@ async function getVaultState() {
 async function initAgent() {
   log('🔧 Initializing AgentKit...');
 
-  // CDP AgentKit — uses CDP wallet for onchain actions
-  const agentkit = await CdpAgentkit.configureWithWallet({
-    cdpApiKeyName:       process.env.CDP_API_KEY_NAME,
-    cdpApiKeyPrivateKey: process.env.CDP_API_KEY_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-    networkId: 'base-sepolia',
+  const walletProvider = await CdpEvmWalletProvider.configureWithWallet({
+    apiKeyId:     process.env.CDP_API_KEY_NAME,
+    apiKeySecret: process.env.CDP_API_KEY_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+    networkId:    'base-sepolia',
   });
 
-  // Groq LLM — free & ultra fast
+  const agentkit = await AgentKit.from({
+    walletProvider,
+    actionProviders: [
+      cdpEvmWalletActionProvider(),
+      erc20ActionProvider(),
+    ],
+  });
+
+  const tools = getLangChainTools(agentkit);
+
   const llm = new ChatGroq({
-    apiKey: process.env.GROQ_API_KEY,
-    model:  'llama-3.3-70b-versatile',
+    apiKey:      process.env.GROQ_API_KEY,
+    model:       'llama-3.3-70b-versatile',
     temperature: 0,
   });
 
-  // CDP Toolkit — gives agent onchain tools
-  const cdpToolkit = new CdpToolkit(agentkit);
-  const tools      = cdpToolkit.getTools();
-
-  // Create ReAct agent
   const agent = createReactAgent({ llm, tools });
 
-  log('✅ GhostAgent initialized');
-  log(`   LLM: Groq Llama 3.3 70B`);
-  log(`   Network: Base Sepolia`);
-  log(`   Tools: ${tools.length} onchain actions available`);
+  const walletAddress = await walletProvider.getAddress();
+  log(`✅ GhostAgent initialized`);
+  log(`   Wallet:  ${walletAddress}`);
+  log(`   LLM:     Groq Llama 3.3 70B`);
+  log(`   Tools:   ${tools.length} onchain actions`);
 
-  return { agent, agentkit };
+  return agent;
 }
 
-// ── AGENT ANALYSIS LOOP ───────────────────────────────────────
+// ── ANALYSIS LOOP ─────────────────────────────────────────────
 async function analyzeAndAct(agent) {
   try {
     const state = await getVaultState();
 
-    log(`\n👻 GhostAgent Analysis:`);
-    log(`   Status:     ${state.status}`);
-    log(`   Price:      ${state.currentPrice}`);
-    log(`   Tick:       ${state.currentTick}`);
-    log(`   In range:   [${state.tickLower}, ${state.tickUpper}]`);
-    log(`   TVL:        ${state.totalAssets} ETH`);
+    log(`\n👻 Vault State:`);
+    log(`   Status:  ${state.status}`);
+    log(`   Price:   ${state.currentPrice}`);
+    log(`   TVL:     ${state.totalAssets} ETH`);
+    log(`   Range:   [${state.tickLower}, ${state.tickUpper}]`);
 
-    // Build prompt for the agent
     const prompt = `
-You are GhostAgent, an AI security monitor for the BaseVault DeFi protocol on Base Sepolia.
+You are GhostAgent, an AI security monitor for BaseVault — a DeFi yield vault on Base Sepolia.
 
 Current vault state:
 - Status: ${state.status}
 - Current tick: ${state.currentTick}
-- Current price: ${state.currentPrice} (WETH/USDC ratio)
+- Current price: ${state.currentPrice}
 - In position: ${state.inPosition}
 - Tick range: [${state.tickLower}, ${state.tickUpper}]
 - Total assets: ${state.totalAssets} ETH
 - Out of range: ${state.outOfRange}
-- Pool address: ${state.poolAddress}
-- Vault address: ${VAULT_ADDRESS}
+- Vault: ${VAULT_ADDRESS}
 
-Your task:
-1. Analyze the current state of the vault
-2. Identify any security risks or opportunities
-3. Provide a concise security report (3-5 sentences)
-4. Rate the overall risk: LOW / MEDIUM / HIGH
-5. Recommend next action: MONITOR / REBALANCE / EMERGENCY_WITHDRAW
+Analyze the vault security and performance. Provide:
+1. Security assessment (2-3 sentences)
+2. Risk level: LOW / MEDIUM / HIGH
+3. Recommended action: MONITOR / REBALANCE / ALERT
 
-Be precise and professional. Focus on DeFi security.
+Be concise and precise.
 `;
 
-    log('\n🤖 Asking Groq LLM to analyze...');
+    log('\n🤖 Analyzing with Groq Llama 3.3...');
 
     const response = await agent.invoke({
-      messages: [{ role: 'user', content: prompt }],
+      messages: [new HumanMessage(prompt)],
     });
 
-    const lastMessage = response.messages[response.messages.length - 1];
-    const analysis    = lastMessage.content;
+    const last     = response.messages[response.messages.length - 1];
+    const analysis = last.content;
 
-    log('\n📊 GhostAgent Report:');
+    log('\n📊 GhostAgent Security Report:');
     log('─'.repeat(50));
     console.log(analysis);
     log('─'.repeat(50));
 
-    // Extract risk level from response
-    if (analysis.includes('HIGH')) {
-      log('⚠️  HIGH RISK detected — manual review recommended');
-    } else if (analysis.includes('MEDIUM')) {
-      log('⚡ MEDIUM risk — monitoring closely');
-    } else {
-      log('✅ LOW risk — vault operating normally');
-    }
-
   } catch (err) {
-    log(`❌ Analysis error: ${err.message}`);
+    log(`❌ Error: ${err.message}`);
   }
 }
 
@@ -182,14 +174,13 @@ async function main() {
   log(`   Network: Base Sepolia`);
   log('─'.repeat(50));
 
-  const { agent } = await initAgent();
+  const agent = await initAgent();
 
-  // Run analysis immediately then every 5 minutes
   await analyzeAndAct(agent);
   setInterval(() => analyzeAndAct(agent), 5 * 60 * 1000);
 }
 
 main().catch(err => {
-  console.error('Fatal error:', err);
+  console.error('Fatal error:', err.message);
   process.exit(1);
 });
