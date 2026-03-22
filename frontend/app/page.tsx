@@ -3,10 +3,11 @@
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useAccount, useReadContract, useWriteContract, useBalance } from 'wagmi';
 import { parseEther, formatEther } from 'viem';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { VAULT_ADDRESS, VAULT_ABI } from './wagmi';
 import useSWR from 'swr';
 import { GhostAgent } from './GhostAgent';
+import { SwapTab } from './SwapTab';
 
 // ── TYPES ────────────────────────────────────────────────────
 interface PolymarketMarket {
@@ -106,10 +107,10 @@ function PortfolioTab({ address, ethBalance, userShares, totalAssets }: {
   totalAssets?: bigint;
 }) {
   const { data: ethPrice } = useSWR('eth-price', fetchEthPrice, { refreshInterval: 30000 });
-  const price   = ethPrice ?? 3200;
-  const ethBal  = parseFloat(formatEther(ethBalance ?? 0n));
-  const shares  = parseFloat(formatEther(userShares ?? 0n));
-  const tvl     = parseFloat(formatEther(totalAssets ?? 0n));
+  const price    = ethPrice ?? 3200;
+  const ethBal   = parseFloat(formatEther(ethBalance ?? 0n));
+  const shares   = parseFloat(formatEther(userShares ?? 0n));
+  const tvl      = parseFloat(formatEther(totalAssets ?? 0n));
   const totalUsd = (ethBal + shares) * price;
 
   const tokens: TokenBalance[] = [
@@ -121,16 +122,15 @@ function PortfolioTab({ address, ethBalance, userShares, totalAssets }: {
   const sparkBase = [0.3, 0.5, 0.4, 0.7, 0.6, 0.8, 0.75, 0.9, 0.85, 1.0];
 
   const txs = [
-    { hash: '0xabc...123', type: 'deposit'  as const, amount: '0.05', token: 'WETH', time: '2m ago',  status: 'success' as const },
-    { hash: '0xdef...456', type: 'receive'  as const, amount: '0.18', token: 'ETH',  time: '1h ago',  status: 'success' as const },
-    { hash: '0xghi...789', type: 'withdraw' as const, amount: '0.02', token: 'WETH', time: '3h ago',  status: 'success' as const },
+    { hash: '0xabc...123', type: 'deposit'  as const, amount: '0.05', token: 'WETH', time: '2m ago' },
+    { hash: '0xdef...456', type: 'receive'  as const, amount: '0.18', token: 'ETH',  time: '1h ago' },
+    { hash: '0xghi...789', type: 'withdraw' as const, amount: '0.02', token: 'WETH', time: '3h ago' },
   ];
   const txColors = { deposit: '#00ff9d', withdraw: '#ff6b35', swap: '#a78bfa', receive: '#00c8ff' };
   const txIcons  = { deposit: '↓', withdraw: '↑', swap: '⇄', receive: '↙' };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-      {/* Hero */}
       <div style={{ background: 'linear-gradient(135deg,#0a1628 0%,#0f1f38 100%)', border: '1px solid rgba(0,200,255,0.2)', borderRadius: '12px', padding: '1.5rem', position: 'relative', overflow: 'hidden' }}>
         <div style={{ position: 'absolute', top: 0, right: 0, width: '200px', height: '200px', background: 'radial-gradient(circle,rgba(0,200,255,0.06) 0%,transparent 70%)', pointerEvents: 'none' }} />
         <div style={{ fontFamily: 'var(--mono)', fontSize: '0.55rem', letterSpacing: '0.2em', color: 'var(--muted)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Total Portfolio Value</div>
@@ -144,13 +144,12 @@ function PortfolioTab({ address, ethBalance, userShares, totalAssets }: {
         </div>
       </div>
 
-      {/* Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: '0.8rem' }}>
         {[
-          { label: 'ETH Balance',  value: `${ethBal.toFixed(4)} ETH`,  sub: `$${(ethBal * price).toFixed(2)}`,              color: '#00c8ff', icon: '◈' },
-          { label: 'Vault Shares', value: `${shares.toFixed(4)}`,       sub: `$${(shares * price).toFixed(2)}`,              color: '#00ff9d', icon: '⬡' },
-          { label: 'Current APY',  value: '18.4%',                      sub: 'ETH/USDC Wide',                                color: '#ffd700', icon: '◎' },
-          { label: 'Est. Monthly', value: `+$${(shares * price * 0.184 / 12).toFixed(2)}`, sub: 'at current APY',           color: '#a78bfa', icon: '↗' },
+          { label: 'ETH Balance',  value: `${ethBal.toFixed(4)} ETH`,  sub: `$${(ethBal * price).toFixed(2)}`,                       color: '#00c8ff', icon: '◈' },
+          { label: 'Vault Shares', value: `${shares.toFixed(4)}`,       sub: `$${(shares * price).toFixed(2)}`,                       color: '#00ff9d', icon: '⬡' },
+          { label: 'Current APY',  value: '18.4%',                      sub: 'ETH/USDC Wide',                                         color: '#ffd700', icon: '◎' },
+          { label: 'Est. Monthly', value: `+$${(shares * price * 0.184 / 12).toFixed(2)}`, sub: 'at current APY',                    color: '#a78bfa', icon: '↗' },
         ].map((s, i) => (
           <div key={i} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '10px', padding: '1rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
@@ -163,7 +162,6 @@ function PortfolioTab({ address, ethBalance, userShares, totalAssets }: {
         ))}
       </div>
 
-      {/* Tokens */}
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '10px', padding: '1.2rem' }}>
         <div style={{ fontFamily: 'var(--mono)', fontSize: '0.55rem', letterSpacing: '0.18em', color: 'var(--muted)', textTransform: 'uppercase', marginBottom: '1rem' }}>Token Balances</div>
         {tokens.map((t, i) => (
@@ -185,7 +183,6 @@ function PortfolioTab({ address, ethBalance, userShares, totalAssets }: {
         ))}
       </div>
 
-      {/* Txs */}
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '10px', padding: '1.2rem' }}>
         <div style={{ fontFamily: 'var(--mono)', fontSize: '0.55rem', letterSpacing: '0.18em', color: 'var(--muted)', textTransform: 'uppercase', marginBottom: '1rem' }}>Recent Transactions</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
@@ -204,78 +201,6 @@ function PortfolioTab({ address, ethBalance, userShares, totalAssets }: {
             </div>
           ))}
         </div>
-      </div>
-    </div>
-  );
-}
-
-// ── SWAP TAB ──────────────────────────────────────────────────
-function SwapTab() {
-  const [fromToken, setFromToken] = useState('ETH');
-  const [toToken,   setToToken]   = useState('USDC');
-  const [fromAmt,   setFromAmt]   = useState('');
-  const [slippage,  setSlippage]  = useState('0.5');
-  const tokens   = ['ETH', 'WETH', 'USDC', 'DAI', 'WBTC'];
-  const mockRate = fromToken === 'ETH' && toToken === 'USDC' ? 3200 : fromToken === 'WETH' && toToken === 'USDC' ? 3198 : 1;
-  const toAmt    = fromAmt ? (parseFloat(fromAmt) * mockRate).toFixed(2) : '';
-
-  return (
-    <div style={{ maxWidth: '480px', margin: '0 auto' }}>
-      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', padding: '1.5rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.2rem' }}>
-          <span style={{ fontFamily: 'var(--mono)', fontSize: '0.65rem', letterSpacing: '0.15em', color: '#a78bfa', textTransform: 'uppercase' }}>⇄ Swap Tokens</span>
-          <div style={{ display: 'flex', gap: '0.3rem' }}>
-            {['0.1', '0.5', '1.0'].map(s => (
-              <button key={s} onClick={() => setSlippage(s)} style={{ fontFamily: 'var(--mono)', fontSize: '0.52rem', padding: '0.2rem 0.5rem', borderRadius: '3px', border: `1px solid ${slippage === s ? '#a78bfa' : 'var(--border)'}`, background: slippage === s ? 'rgba(167,139,250,0.1)' : 'transparent', color: slippage === s ? '#a78bfa' : 'var(--muted)', cursor: 'pointer' }}>{s}%</button>
-            ))}
-          </div>
-        </div>
-        <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '8px', padding: '1rem', marginBottom: '0.5rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-            <span style={{ fontFamily: 'var(--mono)', fontSize: '0.52rem', color: 'var(--muted)' }}>FROM</span>
-            <span style={{ fontFamily: 'var(--mono)', fontSize: '0.52rem', color: 'var(--muted)' }}>Balance: 0.1857</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
-            <input type="number" placeholder="0.0" value={fromAmt} onChange={e => setFromAmt(sanitizeAmount(e.target.value))} style={{ flex: 1, background: 'none', border: 'none', outline: 'none', fontFamily: 'var(--mono)', fontSize: '1.4rem', fontWeight: 700, color: 'var(--text)' }} />
-            <select value={fromToken} onChange={e => setFromToken(e.target.value)} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.3rem 0.5rem', fontFamily: 'var(--mono)', fontSize: '0.7rem', color: 'var(--text)', cursor: 'pointer' }}>
-              {tokens.map(t => <option key={t}>{t}</option>)}
-            </select>
-          </div>
-        </div>
-        <div style={{ textAlign: 'center', margin: '0.4rem 0', cursor: 'pointer' }} onClick={() => { setFromToken(toToken); setToToken(fromToken); }}>
-          <span style={{ fontFamily: 'var(--mono)', fontSize: '1rem', color: '#a78bfa' }}>⇅</span>
-        </div>
-        <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '8px', padding: '1rem', marginBottom: '1rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-            <span style={{ fontFamily: 'var(--mono)', fontSize: '0.52rem', color: 'var(--muted)' }}>TO</span>
-            <span style={{ fontFamily: 'var(--mono)', fontSize: '0.52rem', color: 'var(--green)' }}>Rate: 1 {fromToken} = {mockRate} {toToken}</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
-            <div style={{ flex: 1, fontFamily: 'var(--mono)', fontSize: '1.4rem', fontWeight: 700, color: toAmt ? 'var(--green)' : 'var(--muted)' }}>{toAmt || '0.0'}</div>
-            <select value={toToken} onChange={e => setToToken(e.target.value)} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.3rem 0.5rem', fontFamily: 'var(--mono)', fontSize: '0.7rem', color: 'var(--text)', cursor: 'pointer' }}>
-              {tokens.map(t => <option key={t}>{t}</option>)}
-            </select>
-          </div>
-        </div>
-        {fromAmt && (
-          <div style={{ background: 'rgba(167,139,250,0.04)', border: '1px solid rgba(167,139,250,0.15)', borderRadius: '6px', padding: '0.8rem', marginBottom: '1rem' }}>
-            {[
-              { label: 'Price Impact', val: '<0.01%',               color: 'var(--green)' },
-              { label: 'Slippage',     val: `${slippage}%`,         color: 'var(--muted)' },
-              { label: 'Route',        val: `${fromToken} → ${toToken} (0x)`, color: '#a78bfa' },
-              { label: 'Gas Est.',     val: '~$0.02',               color: 'var(--muted)' },
-            ].map((r, i) => (
-              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.15rem 0' }}>
-                <span style={{ fontFamily: 'var(--mono)', fontSize: '0.58rem', color: 'var(--muted)' }}>{r.label}</span>
-                <span style={{ fontFamily: 'var(--mono)', fontSize: '0.58rem', color: r.color }}>{r.val}</span>
-              </div>
-            ))}
-          </div>
-        )}
-        <button style={{ width: '100%', padding: '0.85rem', fontFamily: 'var(--mono)', fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', border: 'none', borderRadius: '6px', background: fromAmt ? '#a78bfa' : 'var(--muted)', color: 'var(--bg)', cursor: fromAmt ? 'pointer' : 'not-allowed' }}>
-          {fromAmt ? `⇄ Swap ${fromToken} → ${toToken}` : 'Enter Amount'}
-        </button>
-        <p style={{ fontFamily: 'var(--mono)', fontSize: '0.5rem', color: 'var(--muted)', textAlign: 'center', marginTop: '0.8rem' }}>Powered by 0x Protocol · Best price routing</p>
       </div>
     </div>
   );
@@ -326,12 +251,12 @@ function MarketTab() {
 // ── AGENT TAB ─────────────────────────────────────────────────
 function AgentTab() {
   const logs = [
-    { time: '20:53:06', msg: '✓ Pool found: 0x94bfc0...EEeC0 (fee: 0.05%)',     level: 'success' },
-    { time: '20:53:06', msg: 'Tick: -129331 | Price: 0.000002 | In position: false', level: 'info' },
-    { time: '20:53:06', msg: 'ℹ Vault not in position — skipping rebalance',     level: 'info' },
-    { time: '20:52:06', msg: '🐋 Whale detected: 0xc8S...157 — 27.5 ETH',        level: 'warning' },
-    { time: '20:51:06', msg: '✓ All systems nominal',                             level: 'success' },
-    { time: '20:50:06', msg: 'New deposit: 0.407 ETH from 0xb47c...f057',         level: 'info' },
+    { time: '20:53:06', msg: '✓ Pool found: 0x94bfc0...EEeC0 (fee: 0.05%)',         level: 'success' },
+    { time: '20:53:06', msg: 'Tick: -129331 | Price: 0.000002 | In position: false', level: 'info'    },
+    { time: '20:53:06', msg: 'ℹ Vault not in position — skipping rebalance',         level: 'info'    },
+    { time: '20:52:06', msg: '🐋 Whale detected: 0xc8S...157 — 27.5 ETH',            level: 'warning' },
+    { time: '20:51:06', msg: '✓ All systems nominal',                                 level: 'success' },
+    { time: '20:50:06', msg: 'New deposit: 0.407 ETH from 0xb47c...f057',             level: 'info'    },
   ];
   const levelColors: Record<string, string> = { success: '#00ff9d', info: '#00c8ff', warning: '#ffaa00', danger: '#ff3366' };
 
@@ -349,10 +274,10 @@ function AgentTab() {
         <div style={{ fontFamily: 'var(--display)', fontSize: '0.8rem', fontWeight: 700, color: '#7b6fff' }}>MONITORING</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', width: '100%' }}>
           {[
-            { label: 'Uptime',  val: '99.9%', color: '#00ff9d' },
-            { label: 'Checks', val: '1,247',  color: '#00c8ff' },
-            { label: 'Alerts', val: '3',      color: '#ffaa00' },
-            { label: 'Network',val: 'Base',   color: '#7b6fff' },
+            { label: 'Uptime',   val: '99.9%', color: '#00ff9d' },
+            { label: 'Checks',  val: '1,247',  color: '#00c8ff' },
+            { label: 'Alerts',  val: '3',      color: '#ffaa00' },
+            { label: 'Network', val: 'Base',   color: '#7b6fff' },
           ].map((s, i) => (
             <div key={i} style={{ background: 'var(--bg)', borderRadius: '6px', padding: '0.5rem', textAlign: 'center' }}>
               <div style={{ fontFamily: 'var(--mono)', fontSize: '0.5rem', color: 'var(--muted)', textTransform: 'uppercase', marginBottom: '0.2rem' }}>{s.label}</div>
@@ -362,6 +287,7 @@ function AgentTab() {
         </div>
         <div style={{ fontFamily: 'var(--mono)', fontSize: '0.52rem', color: 'var(--muted)', textAlign: 'center', lineHeight: 1.6 }}>Railway · 24/7 · Base Sepolia<br />Checks every 60s</div>
       </div>
+
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', padding: '1.2rem' }}>
         <div style={{ fontFamily: 'var(--mono)', fontSize: '0.55rem', letterSpacing: '0.18em', color: 'var(--muted)', textTransform: 'uppercase', marginBottom: '1rem' }}>Live Logs · Railway</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: '320px', overflowY: 'auto' }}>
@@ -373,6 +299,7 @@ function AgentTab() {
           ))}
         </div>
       </div>
+
       <div style={{ gridColumn: '1 / -1', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', padding: '1.2rem' }}>
         <div style={{ fontFamily: 'var(--mono)', fontSize: '0.55rem', letterSpacing: '0.18em', color: 'var(--muted)', textTransform: 'uppercase', marginBottom: '1rem' }}>Agent Capabilities · Roadmap</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: '0.6rem' }}>
@@ -406,6 +333,7 @@ function VaultTab({ address, isConnected, ethBalance, userShares, isPending, isS
   const [amount, setAmount] = useState('');
   const [action, setAction] = useState<'deposit' | 'withdraw'>('deposit');
   const amountValid = isValidAmount(amount);
+
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: '1rem' }}>
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '10px', padding: '1.5rem' }}>
@@ -421,7 +349,8 @@ function VaultTab({ address, isConnected, ethBalance, userShares, isPending, isS
         <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '6px', padding: '1rem', marginBottom: '0.8rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
             <span style={{ fontFamily: 'var(--mono)', fontSize: '0.55rem', color: 'var(--muted)' }}>AMOUNT</span>
-            <span style={{ fontFamily: 'var(--mono)', fontSize: '0.55rem', color: 'var(--muted)', cursor: 'pointer' }} onClick={() => { const max = action === 'withdraw' ? formatEther(userShares ?? 0n) : formatEther(ethBalance ?? 0n); setAmount(parseFloat(max).toFixed(6)); }}>
+            <span style={{ fontFamily: 'var(--mono)', fontSize: '0.55rem', color: 'var(--muted)', cursor: 'pointer' }}
+              onClick={() => { const max = action === 'withdraw' ? formatEther(userShares ?? 0n) : formatEther(ethBalance ?? 0n); setAmount(parseFloat(max).toFixed(6)); }}>
               Max: <span style={{ color: 'var(--blue)' }}>{action === 'withdraw' ? parseFloat(formatEther(userShares ?? 0n)).toFixed(4) : parseFloat(formatEther(ethBalance ?? 0n)).toFixed(4)}</span>
             </span>
           </div>
@@ -431,11 +360,13 @@ function VaultTab({ address, isConnected, ethBalance, userShares, isPending, isS
           </div>
         </div>
         {writeError && <p style={{ fontFamily: 'var(--mono)', fontSize: '0.6rem', color: 'var(--orange)', marginBottom: '0.8rem' }}>⚠ {writeError.message.slice(0, 80)}...</p>}
-        <button onClick={() => onSubmit(action, amount)} disabled={!isConnected || isPending || !amountValid} style={{ width: '100%', padding: '0.85rem', fontFamily: 'var(--mono)', fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', border: 'none', borderRadius: '6px', cursor: (!isConnected || !amountValid) ? 'not-allowed' : 'pointer', background: (!isConnected || !amountValid) ? 'var(--muted)' : 'var(--green)', color: 'var(--bg)' }}>
+        <button onClick={() => onSubmit(action, amount)} disabled={!isConnected || isPending || !amountValid}
+          style={{ width: '100%', padding: '0.85rem', fontFamily: 'var(--mono)', fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', border: 'none', borderRadius: '6px', cursor: (!isConnected || !amountValid) ? 'not-allowed' : 'pointer', background: (!isConnected || !amountValid) ? 'var(--muted)' : 'var(--green)', color: 'var(--bg)' }}>
           {!isConnected ? '🔒 Connect Wallet' : isPending ? '⟳ Confirming...' : isSuccess ? '✓ Success!' : action === 'deposit' ? '↓ Deposit' : '↑ Withdraw'}
         </button>
         <p style={{ fontFamily: 'var(--mono)', fontSize: '0.52rem', color: 'var(--muted)', textAlign: 'center', marginTop: '0.8rem' }}>{VAULT_ADDRESS.slice(0, 10)}...{VAULT_ADDRESS.slice(-8)} · Base Sepolia · ERC-4626</p>
       </div>
+
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
         <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '1.2rem' }}>
           <div style={{ fontFamily: 'var(--mono)', fontSize: '0.55rem', letterSpacing: '0.15em', color: 'var(--blue)', textTransform: 'uppercase', marginBottom: '1rem' }}>🛡️ Security Status</div>
@@ -560,7 +491,6 @@ export default function Home() {
 
       <div className="pro-layout" style={{ display: 'grid', gridTemplateColumns: '200px 1fr', minHeight: '100vh', position: 'relative', zIndex: 1 }}>
 
-        {/* SIDEBAR */}
         <aside className="sidebar" style={{ background: 'rgba(10,22,40,0.98)', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', padding: '1rem 0.8rem', position: 'sticky', top: 0, height: '100vh', overflowY: 'auto' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.4rem 0.4rem 1.2rem', borderBottom: '1px solid var(--border)', marginBottom: '0.8rem' }}>
             <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--blue)', animation: 'pulse 2s infinite', boxShadow: '0 0 8px var(--blue)', flexShrink: 0 }} />
@@ -569,8 +499,7 @@ export default function Home() {
           </div>
           <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: 1 }}>
             {NAV_ITEMS.map(item => (
-              <button key={item.id}
-                className="sidebar-btn"
+              <button key={item.id} className="sidebar-btn"
                 style={{ borderColor: activeTab === item.id ? `${item.color}30` : 'transparent', background: activeTab === item.id ? `${item.color}08` : 'transparent' }}
                 onClick={() => setActiveTab(item.id)}>
                 <span style={{ fontSize: '0.9rem', width: '18px', textAlign: 'center' }}>{item.icon}</span>
@@ -588,7 +517,6 @@ export default function Home() {
           </div>
         </aside>
 
-        {/* MAIN */}
         <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
           <header style={{ background: 'rgba(3,8,16,0.92)', backdropFilter: 'blur(20px)', borderBottom: '1px solid var(--border)', padding: '0.7rem 1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', position: 'sticky', top: 0, zIndex: 50 }}>
             <div style={{ display: 'flex', gap: '1.5rem', overflowX: 'auto', flex: 1 }}>

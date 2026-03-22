@@ -83,10 +83,11 @@ async function getVaultState() {
 async function initAgent() {
   log('🔧 Initializing AgentKit...');
 
+  // Fixed property names as per CDP support team
   const walletProvider = await CdpEvmWalletProvider.configureWithWallet({
-    apiKeyId:     process.env.CDP_API_KEY_NAME,
-    apiKeySecret: process.env.CDP_API_KEY_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-    networkId:    'base-sepolia',
+    apiKeyName:       process.env.CDP_API_KEY_ID,                                    // Full "organizations/.../apiKeys/..." path
+    apiKeyPrivateKey: process.env.CDP_API_KEY_SECRET?.replace(/\\n/g, '\n'),         // PEM EC key with real newlines
+    networkId:        'base-sepolia',
   });
 
   const agentkit = await AgentKit.from({
